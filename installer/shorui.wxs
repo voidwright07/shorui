@@ -1,0 +1,94 @@
+<!--
+  Windows installer for Shorui. Build it with build.ps1 in this folder.
+
+  Installs for the current user only, so no administrator rights are needed:
+  the app goes to %LOCALAPPDATA%\Programs\Shorui, with a Start menu shortcut, an entry under
+  Apps for uninstalling, and Shorui offered in "Open with" for PDF files (the default PDF app
+  is left alone). A newer installer upgrades an older one in place.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="Shorui"
+           Manufacturer="Shorui"
+           Version="$(var.Version)"
+           UpgradeCode="{F4F6846E-CAE9-4BF1-BF07-3047B2DAAED5}"
+           Scope="perUser"
+           Compressed="yes"
+           Language="1033">
+    <SummaryInformation Description="Shorui: an offline, all-in-one PDF toolbox" />
+
+    <!-- Same-version upgrades let a rebuilt installer replace a test install. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of Shorui is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="ShoruiIcon" SourceFile="$(var.Assets)\icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ShoruiIcon" />
+    <Property Id="ARPCONTACT" Value="Shorui" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsDir" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Shorui" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main" Title="Shorui" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="OpenWithPdf" />
+    </Feature>
+
+    <!-- Per-user components keep their key path in the registry. -->
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Component Id="App" Guid="{F28024B8-862E-4C8D-92B0-262B85F523EB}">
+        <File Id="ShoruiExe" Source="$(var.BinDir)\shorui.exe" />
+        <RegistryValue Root="HKCU" Key="Software\Shorui\Installer" Name="App" Type="integer" Value="1" KeyPath="yes" />
+        <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+        <RemoveFolder Id="RemoveProgramsDir" Directory="ProgramsDir" On="uninstall" />
+      </Component>
+      <Component Id="Cli" Guid="{3B5F2FF6-4CFD-4A44-B604-B72C216B20B0}">
+        <File Id="ShoruiCliExe" Source="$(var.BinDir)\shorui-cli.exe" />
+        <RegistryValue Root="HKCU" Key="Software\Shorui\Installer" Name="Cli" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+      <Component Id="FontLicense" Guid="{5BE4E3E0-D043-49F9-B48A-1C632F98E794}">
+        <File Id="FontLicense" Source="$(var.Assets)\fonts\OFL.txt" Name="OFL.txt" />
+        <RegistryValue Root="HKCU" Key="Software\Shorui\Installer" Name="FontLicense" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder">
+      <Shortcut Id="ShoruiStartMenu"
+                Name="Shorui"
+                Description="Offline PDF toolbox"
+                Target="[INSTALLFOLDER]shorui.exe"
+                WorkingDirectory="INSTALLFOLDER"
+                Icon="ShoruiIcon" />
+      <RegistryValue Root="HKCU" Key="Software\Shorui\Installer" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <!-- "Open with > Shorui" on PDF files. The default PDF app is not changed. -->
+    <Component Id="OpenWithPdf" Directory="INSTALLFOLDER">
+      <RegistryValue Root="HKCU" Key="Software\Classes\Applications\shorui.exe" Name="FriendlyAppName" Type="string" Value="Shorui" />
+      <RegistryValue Root="HKCU" Key="Software\Classes\Applications\shorui.exe\DefaultIcon" Type="string" Value="[INSTALLFOLDER]shorui.exe,0" />
+      <RegistryValue Root="HKCU" Key="Software\Classes\Applications\shorui.exe\shell\open\command" Type="string" Value="&quot;[INSTALLFOLDER]shorui.exe&quot; &quot;%1&quot;" />
+      <RegistryValue Root="HKCU" Key="Software\Classes\Applications\shorui.exe\SupportedTypes" Name=".pdf" Type="string" Value="" />
+      <RegistryValue Root="HKCU" Key="Software\Classes\.pdf\OpenWithList\shorui.exe" Type="string" Value="" KeyPath="yes" />
+    </Component>
+
+    <!-- One page with the license and Install, then progress, then Finish. -->
+    <ui:WixUI Id="WixUI_Minimal" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.Here)\License.rtf" />
+    <WixVariable Id="WixUIDialogBmp" Value="$(var.Here)\dialog.bmp" />
+    <WixVariable Id="WixUIBannerBmp" Value="$(var.Here)\banner.bmp" />
+
+    <!-- "Open Shorui now" on the last page, ticked. -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Open Shorui now" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WixShellExecTarget" Value="[#ShoruiExe]" />
+    <CustomAction Id="OpenShorui" BinaryRef="Wix4UtilCA_X64" DllEntry="WixShellExec" Impersonate="yes" />
+    <UI>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="OpenShorui" Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
+    </UI>
+  </Package>
+</Wix>

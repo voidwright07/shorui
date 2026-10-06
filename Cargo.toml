@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = ["crates/shorui-core", "crates/shorui"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[profile.dev]
+opt-level = 1
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 3
+
+# Boot time matters: one optimised, stripped binary with no unwinding tables.
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true
