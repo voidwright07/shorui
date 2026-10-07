@@ -85,6 +85,7 @@ IBM Plex Sans (400, 500, 600) and IBM Plex Mono (400, 500). Both SIL OFL, bundle
 | stamp-fill | #C4372D | #C4372D | Destructive button, white text |
 | stamp-wash / stamp-rule | red 12% / 38% | red 8% / 32% | Permanent-action notice |
 | stock | #F4F2EC | #FFFFFF | Paper |
+| seal | #D63A26 | #D63A26 | The logo's vermilion seal. Used only in the logo mark. |
 | blackout | #0A0A0A | #0A0A0A | Redaction mark |
 | g-organise | #8C96F0 | #6C78E8 | Group dot |
 | g-convert | #DDAE4A | #C99A2E | Group dot |

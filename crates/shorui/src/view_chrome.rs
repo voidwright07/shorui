@@ -74,8 +74,16 @@ fn window_controls(window: &Window, p: &Palette) -> Div {
         .child(control("win-close", IconName::WindowClose, WindowControlArea::Close))
 }
 
+/// The mark (docs/brand/mark.py) at 14 x 20: ink columns read right to left, and the seal where the
+/// sender signs. Positions are inside the sheet's 1px edge.
 fn logo(p: &Palette) -> Div {
-    div().flex().items_center().justify_center().size(px(20.)).rounded(px(5.)).bg(p.stock).flex_shrink_0().child(ui::icon("logo", 13., p.stock_ink))
+    let mark = |x: f32, y: f32, w: f32, h: f32, r: f32, color: Hsla| div().absolute().left(px(x)).top(px(y)).w(px(w)).h(px(h)).rounded(px(r)).bg(color);
+    let sheet = div().relative().w(px(14.)).h(px(20.)).rounded(px(2.)).bg(p.stock).border_1().border_color(p.stock_edge)
+        .child(mark(9.5, 1.5, 1.5, 14.5, 0.75, p.stock_ink))
+        .child(mark(6.5, 1.5, 1.5, 12., 0.75, p.stock_ink))
+        .child(mark(3.5, 1.5, 1.5, 4.5, 0.75, p.stock_ink))
+        .child(mark(1., 12., 4., 4., 0.5, p.seal));
+    div().flex().items_center().justify_center().size(px(20.)).flex_shrink_0().child(sheet)
 }
 
 fn nav_item(id: impl Into<ElementId>, icon: &str, label: &str, active: bool, hint: Option<String>, p: &Palette) -> Stateful<Div> {

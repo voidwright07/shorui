@@ -1,87 +1,45 @@
-"""Draws the app icon: a sheet of paper on a graphite tile. Standard library only.
+"""Draws the app icon from the mark in docs/brand/mark.py: a document sheet on a graphite tile, with
+columns of ink read right to left and a vermilion seal. Needs Pillow.
 
-Run from this folder:  python make_icon.py
-Writes icon.png (256 px) and icon.ico (256, 64, 48, 32, 16 px), plus icon-macos.png: 1024 px with
-the tile inset to 824 px, the margin macOS app icons keep, for the .icns made at release time.
+Run:  python make_icon.py
+Writes, next to this script, icon.png (256 px) and icon.ico (256, 64, 48, 32, 24, 16 px), plus
+icon-macos.png: 1024 px with the tile inset to 824 px, the margin macOS app icons keep, for the .icns
+made at release time.
 """
-import math
 import struct
-import zlib
+import sys
+from io import BytesIO
+from pathlib import Path
 
-STOCK = (244, 242, 236)
-INK = (16, 17, 19)
+from PIL import Image
 
-
-def seg_dist(px, py, ax, ay, bx, by):
-    dx, dy = bx - ax, by - ay
-    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)))
-    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
-
-
-def rounded_rect(px, py, size, radius):
-    qx = abs(px - size / 2) - (size / 2 - radius)
-    qy = abs(py - size / 2) - (size / 2 - radius)
-    return math.hypot(max(qx, 0), max(qy, 0)) + min(max(qx, qy), 0) - radius
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parents[2] / "docs" / "brand"))
+import mark  # noqa: E402
 
 
-def cover(d, soft=0.7):
-    return max(0.0, min(1.0, 0.5 - d / soft))
+def png(img):
+    buf = BytesIO()
+    img.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
 
 
-def draw(size):
-    k = size / 24.0
-    pts = [(7.5, 4.5), (14, 4.5), (17.5, 8), (17.5, 19.5), (7.5, 19.5), (7.5, 4.5)]
-    fold = [(14, 4.5), (14, 8), (17.5, 8)]
-    lines = [((10, 12), (15, 12)), ((10, 15.5), (15, 15.5))]
-    stroke = max(1.0, 1.7 * k)
-    rows = []
-    for y in range(size):
-        row = bytearray()
-        for x in range(size):
-            cx, cy = x + 0.5, y + 0.5
-            tile = cover(rounded_rect(cx, cy, size, size * 0.22))
-            d = 1e9
-            for a, b in zip(pts, pts[1:]):
-                d = min(d, seg_dist(cx, cy, a[0] * k, a[1] * k, b[0] * k, b[1] * k))
-            for a, b in zip(fold, fold[1:]):
-                d = min(d, seg_dist(cx, cy, a[0] * k, a[1] * k, b[0] * k, b[1] * k))
-            if size >= 32:
-                for a, b in lines:
-                    d = min(d, seg_dist(cx, cy, a[0] * k, a[1] * k, b[0] * k, b[1] * k))
-            ink = cover(d - stroke / 2)
-            r, g, b = (round(STOCK[i] * (1 - ink) + INK[i] * ink) for i in range(3))
-            row += bytes((r, g, b, round(255 * tile)))
-        rows.append(bytes(row))
-    return rows
+mark.render(256).save(HERE / "icon.png", optimize=True)
 
-
-def png(size, rows=None):
-    raw = b"".join(b"\x00" + row for row in (rows if rows is not None else draw(size)))
-
-    def chunk(kind, data):
-        body = kind + data
-        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
-
-    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 6, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b"")
-
-
-sizes = [256, 64, 48, 32, 16]
-images = [png(s) for s in sizes]
-open("icon.png", "wb").write(images[0])
+sizes = [256, 64, 48, 32, 24, 16]
+images = [png(mark.render(s)) for s in sizes]
 header = struct.pack("<HHH", 0, 1, len(sizes))
 offset = 6 + 16 * len(sizes)
 entries = b""
 for s, data in zip(sizes, images):
     entries += struct.pack("<BBBBHHII", s % 256, s % 256, 0, 0, 1, 32, len(data), offset)
     offset += len(data)
-open("icon.ico", "wb").write(header + entries + b"".join(images))
-print("icon.png", len(images[0]), "bytes; icon.ico", offset, "bytes")
+(HERE / "icon.ico").write_bytes(header + entries + b"".join(images))
+print("icon.png and icon.ico", offset, "bytes")
 
-# macOS: the tile sits inside a transparent margin, as system app icons do.
 inner, canvas = 824, 1024
-pad = (canvas - inner) // 2
-tile = draw(inner)
-blank = bytes(4 * canvas)
-rows = [blank] * pad + [bytes(4 * pad) + row + bytes(4 * pad) for row in tile] + [blank] * pad
-open("icon-macos.png", "wb").write(png(canvas, rows))
+mac = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
+tile = mark.draw_vector(inner, glyph=True, edge=True)
+mac.paste(tile, ((canvas - inner) // 2,) * 2, tile)
+mac.save(HERE / "icon-macos.png", optimize=True)
 print("icon-macos.png written")

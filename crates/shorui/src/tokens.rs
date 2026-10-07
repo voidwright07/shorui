@@ -54,6 +54,8 @@ pub struct Palette {
     pub stock_ink: Hsla,
     pub stock_edge: Hsla,
     pub stock_select: Hsla,
+    /// The logo's vermilion seal.
+    pub seal: Hsla,
     pub blackout: Hsla,
     // Controls
     pub knob: Hsla,
@@ -119,6 +121,7 @@ impl Palette {
             stock_ink: c(0x1A1A1A),
             stock_edge: ca(0x000000, 0),
             stock_select: c(0x0A7690),
+            seal: c(0xD63A26),
             blackout: c(0x0A0A0A),
             knob: c(0xA4A7AD),
             thumb: c(0xECEDEE),
@@ -170,6 +173,7 @@ impl Palette {
             stock_ink: c(0x1A1A1A),
             stock_edge: ca(0x000000, 16),
             stock_select: c(0x0A7690),
+            seal: c(0xD63A26),
             blackout: c(0x0A0A0A),
             knob: c(0xFFFFFF),
             thumb: c(0xFFFFFF),
