@@ -3,7 +3,7 @@
 
 use crate::catalog::{self, Tool};
 use crate::jobs;
-use crate::palette::{PaletteEvent, PaletteView};
+use crate::palette::{PaletteEvent, PaletteView, Presentation};
 use crate::palette_model::{Command, Situation};
 use crate::settings::Settings;
 use crate::state::{RowStatus, State};
@@ -91,7 +91,7 @@ pub struct Shell {
 
 impl Shell {
     pub fn new(settings: Settings, booted: std::time::Instant, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let palette = cx.new(|cx| PaletteView::new(window, cx));
+        let palette = cx.new(|cx| PaletteView::new(Presentation::Overlay, window, cx));
         let subscription = cx.subscribe_in(&palette, window, |this: &mut Self, _, event: &PaletteEvent, window, cx| match event {
             PaletteEvent::Dismiss => this.close_palette(window, cx),
             PaletteEvent::Run(command) => {

@@ -1,5 +1,6 @@
-//! The command palette: a centred overlay that is the fastest way to do anything.
-//! Opened with Cmd/Ctrl+K, driven entirely from the keyboard.
+//! The command palette: the fastest way to do anything, driven entirely from the keyboard.
+//! Off Home it is a centred overlay opened with Cmd/Ctrl+K; on Home the same search sits
+//! inline on the page.
 
 use crate::palette_model::{Command, Entry, Section, Situation, entries, mod_label};
 use crate::tokens::*;
@@ -32,7 +33,16 @@ pub enum PaletteEvent {
     Dismiss,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Presentation {
+    /// Over everything, on a scrim, until a row is chosen or it is dismissed.
+    Overlay,
+    /// Part of the Home page: the results attach under the input while there is a query.
+    Inline,
+}
+
 pub struct PaletteView {
+    presentation: Presentation,
     input: Entity<InputState>,
     entries: Vec<Entry>,
     selected: usize,
@@ -44,14 +54,18 @@ pub struct PaletteView {
 impl EventEmitter<PaletteEvent> for PaletteView {}
 
 impl PaletteView {
-    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let input = cx.new(|cx| InputState::new(window, cx).placeholder("Search tools and actions"));
+    pub fn new(presentation: Presentation, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let placeholder = match presentation {
+            Presentation::Overlay => "Search tools and actions",
+            Presentation::Inline => "Merge, compress, sign, make searchable…",
+        };
+        let input = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder));
         let subscription = cx.subscribe_in(&input, window, |this: &mut Self, _, event: &InputEvent, _window, cx| match event {
             InputEvent::Change => this.refresh(cx),
             InputEvent::PressEnter { .. } => this.confirm(cx),
             _ => {}
         });
-        PaletteView { input, entries: Vec::new(), selected: 0, situation: Situation::default(), scroll: ScrollHandle::new(), _subscription: subscription }
+        PaletteView { presentation, input, entries: Vec::new(), selected: 0, situation: Situation::default(), scroll: ScrollHandle::new(), _subscription: subscription }
     }
 
     /// Show the palette for the current state of the app, with an empty query.
@@ -63,6 +77,15 @@ impl PaletteView {
         });
         self.selected = 0;
         self.refresh(cx);
+    }
+
+    pub fn clear(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.input.update(cx, |state, cx| state.set_value("", window, cx));
+        self.refresh(cx);
+    }
+
+    pub fn is_focused(&self, window: &Window, cx: &App) -> bool {
+        self.input.focus_handle(cx).is_focused(window)
     }
 
     pub fn query(&self, cx: &App) -> String {
@@ -111,8 +134,12 @@ impl PaletteView {
     fn enter(&mut self, _: &PaletteConfirm, _: &mut Window, cx: &mut Context<Self>) {
         self.confirm(cx);
     }
-    fn close(&mut self, _: &PaletteClose, _: &mut Window, cx: &mut Context<Self>) {
-        cx.emit(PaletteEvent::Dismiss);
+    fn close(&mut self, _: &PaletteClose, window: &mut Window, cx: &mut Context<Self>) {
+        if self.presentation == Presentation::Inline && !self.query(cx).is_empty() {
+            self.clear(window, cx);
+        } else {
+            cx.emit(PaletteEvent::Dismiss);
+        }
     }
 
     fn footer_note(&self) -> String {
@@ -151,9 +178,13 @@ fn highlighted(text: &str, hits: &[(usize, usize)], base: Hsla, p: &Palette) -> 
     out
 }
 
-impl Render for PaletteView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = pal(cx);
+impl PaletteView {
+    fn input_row(&self, height: f32, p: &Palette) -> Div {
+        ui::row().h(px(height)).flex_shrink_0().pl(px(16.)).pr(px(12.)).gap(px(10.)).child(ui::icon("search", 16., p.toner_3)).child(div().flex_1().min_w_0().text_size(px(15.)).child(Input::new(&self.input).appearance(false)))
+    }
+
+    fn results(&self, p: &Palette, cx: &mut Context<Self>) -> Stateful<Div> {
+        let p = *p;
         let section_title = |section: Section, situation: &Situation| -> String {
             match section {
                 Section::Recent => "Recent".into(),
@@ -201,67 +232,78 @@ impl Render for PaletteView {
         if self.entries.is_empty() {
             list = list.child(ui::row().h(px(64.)).justify_center().text_color(p.toner_3).child("Nothing matches. Try a tool name such as merge or compress."));
         }
+        list
+    }
 
-        let hint = |keys: &[&str], label: &'static str| ui::row().gap(px(6.)).child(ui::kbd(keys, &p, KeyOn::Surface)).child(label);
-        let note = self.footer_note();
+    fn footer(&self, esc: &'static str, p: &Palette) -> Div {
+        let hint = |keys: &[&str], label: &'static str| ui::row().gap(px(6.)).child(ui::kbd(keys, p, KeyOn::Surface)).child(label);
+        ui::row()
+            .h(px(36.))
+            .flex_shrink_0()
+            .px(px(12.))
+            .gap(px(16.))
+            .border_t_1()
+            .border_color(p.rule)
+            .text_size(px(TEXT_SM))
+            .text_color(p.toner_3)
+            .child(hint(&["Up", "Down"], "Move"))
+            .child(hint(&["Enter"], "Open"))
+            .child(hint(&["Esc"], esc))
+            .child(ui::grow())
+            .child(SharedString::from(self.footer_note()))
+    }
 
-        div()
-            .id("palette")
-            .key_context(CONTEXT)
-            .on_action(cx.listener(Self::up))
-            .on_action(cx.listener(Self::down))
-            .on_action(cx.listener(Self::enter))
-            .on_action(cx.listener(Self::close))
-            .absolute()
-            .inset_0()
-            .occlude()
-            .flex()
-            .flex_col()
-            .items_center()
-            .pt(px(104.))
-            .bg(p.scrim)
-            .on_mouse_down(MouseButton::Left, cx.listener(|_, _, _, cx| cx.emit(PaletteEvent::Dismiss)))
-            .child(
-                div()
-                    .id("palette-box")
-                    .w(px(640.))
+    fn with_keys(el: Stateful<Div>, cx: &mut Context<Self>) -> Stateful<Div> {
+        el.key_context(CONTEXT).on_action(cx.listener(Self::up)).on_action(cx.listener(Self::down)).on_action(cx.listener(Self::enter)).on_action(cx.listener(Self::close))
+    }
+}
+
+impl Render for PaletteView {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let p = pal(cx);
+        match self.presentation {
+            Presentation::Overlay => Self::with_keys(div().id("palette"), cx)
+                .absolute()
+                .inset_0()
+                .occlude()
+                .flex()
+                .flex_col()
+                .items_center()
+                .pt(px(104.))
+                .bg(p.scrim)
+                .on_mouse_down(MouseButton::Left, cx.listener(|_, _, _, cx| cx.emit(PaletteEvent::Dismiss)))
+                .child(
+                    div()
+                        .id("palette-box")
+                        .w(px(640.))
+                        .flex()
+                        .flex_col()
+                        .rounded(px(R_LG))
+                        .border_1()
+                        .border_color(p.rule_strong)
+                        .bg(p.sleeve)
+                        .overflow_hidden()
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .child(self.input_row(48., &p).border_b_1().border_color(p.rule).child(ui::kbd(&["Esc"], &p, KeyOn::Surface)))
+                        .child(self.results(&p, cx))
+                        .child(self.footer("Close", &p)),
+                ),
+            Presentation::Inline => {
+                let focused = self.is_focused(window, cx);
+                let open = !self.query(cx).trim().is_empty();
+                Self::with_keys(div().id("home-search"), cx)
+                    .w_full()
                     .flex()
                     .flex_col()
                     .rounded(px(R_LG))
                     .border_1()
-                    .border_color(p.rule_strong)
-                    .bg(p.sleeve)
+                    .border_color(if focused { p.cyan } else { p.control_rule })
+                    .bg(p.well)
                     .overflow_hidden()
-                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .child(
-                        ui::row()
-                            .h(px(48.))
-                            .pl(px(16.))
-                            .pr(px(12.))
-                            .gap(px(10.))
-                            .border_b_1()
-                            .border_color(p.rule)
-                            .child(ui::icon("search", 16., p.toner_3))
-                            .child(div().flex_1().min_w_0().text_size(px(15.)).child(Input::new(&self.input).appearance(false)))
-                            .child(ui::kbd(&["Esc"], &p, KeyOn::Surface)),
-                    )
-                    .child(list)
-                    .child(
-                        ui::row()
-                            .h(px(36.))
-                            .px(px(12.))
-                            .gap(px(16.))
-                            .border_t_1()
-                            .border_color(p.rule)
-                            .text_size(px(TEXT_SM))
-                            .text_color(p.toner_3)
-                            .child(hint(&["Up", "Down"], "Move"))
-                            .child(hint(&["Enter"], "Open"))
-                            .child(hint(&["Esc"], "Close"))
-                            .child(ui::grow())
-                            .child(SharedString::from(note)),
-                    ),
-            )
+                    .child(self.input_row(52., &p).when(open, |s| s.border_b_1().border_color(p.rule)))
+                    .when(open, |s| s.child(self.results(&p, cx)).child(self.footer("Clear", &p)))
+            }
+        }
     }
 }
 
