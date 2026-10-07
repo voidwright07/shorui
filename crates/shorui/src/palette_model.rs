@@ -53,7 +53,7 @@ pub struct Entry {
 }
 
 /// What the palette needs to know about the app.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Situation {
     pub recent: Vec<String>,
     pub active_tool: Option<&'static str>,
@@ -92,6 +92,10 @@ fn about(id: &str) -> (&'static str, &'static [&'static str]) {
         "compare" => ("Find differences between two files", &["diff", "differences", "changes", "versions"]),
         _ => ("", &[]),
     }
+}
+
+pub fn describe(id: &str) -> &'static str {
+    about(id).0
 }
 
 /// A small nudge so that, between equally good matches, the tools people reach for most

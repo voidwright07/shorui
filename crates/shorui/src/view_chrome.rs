@@ -418,30 +418,33 @@ impl Shell {
             files = files.child(ui::icon_button("topbar-add", "plus", 24., &p).occlude().on_click(cx.listener(|this, _, window, cx| this.pick_files(window, cx))));
         }
 
-        let search = div()
-            .id("search")
-            .occlude()
-            .flex()
-            .flex_row()
-            .items_center()
-            .flex_shrink_0()
-            .gap(px(8.))
-            .h(px(CONTROL_H))
-            .pl(px(8.))
-            .pr(px(5.))
-            .rounded(px(R_SM))
-            .border_1()
-            .border_color(p.rule)
-            .bg(p.well)
-            .text_color(p.toner_3)
-            .cursor_pointer()
-            .tab_index(0)
-            .hover(move |s| s.border_color(p.rule_strong))
-            .focus_visible(move |s| ui::ring(s, &p))
-            .on_click(cx.listener(|this, _, window, cx| this.open_palette(window, cx)))
-            .child(ui::icon("search", 14., p.toner_3))
-            .when(!compact, |s| s.w(px(260.)).child(div().flex_1().child("Search tools and actions")))
-            .child(ui::kbd(&crate::palette::open_keys(), &p, KeyOn::Surface));
+        // Home has the same search inline on the page; two boxes would read as two features.
+        let search = tool.is_some().then(|| {
+            div()
+                .id("search")
+                .occlude()
+                .flex()
+                .flex_row()
+                .items_center()
+                .flex_shrink_0()
+                .gap(px(8.))
+                .h(px(CONTROL_H))
+                .pl(px(8.))
+                .pr(px(5.))
+                .rounded(px(R_SM))
+                .border_1()
+                .border_color(p.rule)
+                .bg(p.well)
+                .text_color(p.toner_3)
+                .cursor_pointer()
+                .tab_index(0)
+                .hover(move |s| s.border_color(p.rule_strong))
+                .focus_visible(move |s| ui::ring(s, &p))
+                .on_click(cx.listener(|this, _, window, cx| this.open_palette(window, cx)))
+                .child(ui::icon("search", 14., p.toner_3))
+                .when(!compact, |s| s.w(px(260.)).child(div().flex_1().child("Search tools and actions")))
+                .child(ui::kbd(&crate::palette::open_keys(), &p, KeyOn::Surface))
+        });
 
         let local_open = self.local_open;
         let local = div()
@@ -493,7 +496,7 @@ impl Shell {
 
         let controls = window_controls(window, &p);
         let trailing = if cfg!(target_os = "macos") { 12. } else { 0. };
-        caption(ui::row()).h(px(TOPBAR_H)).pl(px(16.)).pr(px(trailing)).gap(px(12.)).flex_shrink_0().border_b_1().border_color(p.rule).child(crumbs).child(files).child(search).child(local).child(controls)
+        caption(ui::row()).h(px(TOPBAR_H)).pl(px(16.)).pr(px(trailing)).gap(px(12.)).flex_shrink_0().border_b_1().border_color(p.rule).child(crumbs).child(files).children(search).child(local).child(controls)
     }
 
     pub fn render_runline(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -523,10 +526,19 @@ impl Shell {
                 .into_any_element();
         }
 
-        bar = bar.child(ui::mono(self.state.input_summary()).text_color(p.toner_2).flex_shrink_0());
         let Some(tool) = tool else {
-            return bar.child(ui::grow()).child(ui::button("run", Btn::Primary, 32., false, &p).child("Run").child(ui::kbd(&keys, &p, KeyOn::Muted))).into_any_element();
+            let loaded = self.state.files.len();
+            let summary = match loaded {
+                0 => "Drop files anywhere, or".to_string(),
+                1 => "1 file loaded".to_string(),
+                n => format!("{n} files loaded"),
+            };
+            return bar
+                .child(ui::mono(summary).text_color(p.toner_3).flex_shrink_0())
+                .child(ui::button("browse", Btn::Default, 32., true, &p).child("Browse files").child(ui::kbd(&[mod_label(), "O"], &p, KeyOn::Surface)).on_click(cx.listener(|this, _, window, cx| this.pick_files(window, cx))))
+                .into_any_element();
         };
+        bar = bar.child(ui::mono(self.state.input_summary(tool)).text_color(p.toner_2).flex_shrink_0());
 
         bar = bar.child(ui::icon("arrow-right", 12., p.toner_4)).child(ui::row().gap(px(6.)).flex_shrink_0().text_color(p.toner_3).child(ui::icon("folder", 12., p.toner_4)).child(ui::mono("you choose where to save")));
         let note = match tool.id {

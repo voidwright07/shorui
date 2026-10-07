@@ -1,7 +1,7 @@
 //! The workspace: Home, and the file queue most tools use.
 
 use crate::catalog::{self, Inputs, Tool, Workspace};
-use crate::palette_model::mod_label;
+use crate::palette_model::{Command, Entry, Section, describe, entries, mod_label};
 use crate::settings::human_size;
 use crate::shell::Shell;
 use crate::state::{FileEntry, RowStatus};
@@ -9,7 +9,6 @@ use crate::tokens::*;
 use crate::ui::{self, Btn, KeyOn, Tone, pal};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
-use shorui_core::tools::Group;
 
 /// Payload while a queue row is being dragged.
 #[derive(Clone)]
@@ -34,12 +33,6 @@ fn drop_zone(p: &Palette) -> Div {
     div().flex().flex_col().items_center().justify_center().gap(px(18.)).rounded(px(R_LG)).border_1().border_dashed().border_color(p.rule_strong).bg(p.well)
 }
 
-/// Three sheets fanned out: the app's one bright thing.
-fn paper_stack(p: &Palette) -> Div {
-    let sheet = |left: f32, top: f32, opacity: f32| div().absolute().left(px(left)).top(px(top)).opacity(opacity).child(ui::paper_blank(40., 54., p).child(ui::col().p(px(6.)).gap(px(4.)).child(div().h(px(3.)).w(px(18.)).bg(p.toner_3)).child(div().h(px(2.)).w_full().bg(p.plate_3)).child(div().h(px(2.)).w_full().bg(p.plate_3)).child(div().h(px(2.)).w(px(16.)).bg(p.plate_3))));
-    div().relative().w(px(78.)).h(px(64.)).child(sheet(0., 10., 0.45)).child(sheet(19., 5., 0.7)).child(sheet(38., 0., 1.0))
-}
-
 impl Shell {
     pub fn render_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         match self.state.tool() {
@@ -52,65 +45,119 @@ impl Shell {
         }
     }
 
+    /// The launcher: one search box that is the command palette, then favourites and the
+    /// tools worth reaching for next.
     fn render_home(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let p = pal(cx);
-        let m = mod_label();
-        let mut grid = div().grid().grid_cols(5).gap(px(16.));
-        for group in Group::ALL {
-            let mut card = ui::col().p(px(4.)).rounded(px(R_MD)).border_1().border_color(p.rule).child(
-                ui::row().h(px(32.)).px(px(8.)).gap(px(8.)).child(ui::dot(p.group(group), 6.)).child(div().text_size(px(TEXT_SM)).font_weight(FontWeight::MEDIUM).text_color(p.toner_2).child(group.name())).child(ui::mono(catalog::in_group(group).count().to_string()).text_size(px(TEXT_XS)).text_color(p.toner_4)),
-            );
-            for tool in catalog::in_group(group) {
-                let id = tool.id;
-                let chord = ["G".to_string(), tool.chord.to_uppercase()];
-                card = card.child(
-                    div()
-                        .id(("home-tool", tool_pos(tool)))
-                        .group("tool-row")
-                        .flex()
-                        .flex_row()
-                        .items_center()
-                        .gap(px(10.))
-                        .h(px(32.))
-                        .px(px(8.))
-                        .rounded(px(R_SM))
-                        .cursor_pointer()
-                        .tab_index(0)
-                        .font_weight(FontWeight::MEDIUM)
-                        .hover(move |s| s.bg(p.plate))
-                        .active(move |s| s.bg(p.plate_2))
-                        .focus_visible(move |s| ui::ring(s, &p))
-                        .on_click(cx.listener(move |this, _, _, cx| this.open_tool(id, cx)))
-                        .child(ui::icon(tool.icon, 14., p.toner_3))
-                        .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().text_ellipsis().child(tool.name))
-                        .child(div().invisible().group_hover("tool-row", |s| s.visible()).child(ui::kbd(&chord, &p, KeyOn::Surface))),
-                );
+        let situation = self.situation();
+        self.home_search.update(cx, |search, cx| search.set_situation(situation.clone(), cx));
+        let searching = !self.home_search.read(cx).query(cx).trim().is_empty();
+        let loaded = situation.files.len();
+        let note = match loaded {
+            0 => "Just start typing a task or a tool. Files can be dropped anywhere in this window.".to_string(),
+            1 => "1 file loaded. Pick a tool for it.".to_string(),
+            n => format!("{n} files loaded. Pick a tool for them."),
+        };
+
+        let mut page = ui::col()
+            .w(px(720.))
+            .max_w_full()
+            .pt(px(104.))
+            .pb(px(48.))
+            .gap(px(24.))
+            .child(ui::col().gap(px(6.)).child(div().text_size(px(22.)).line_height(px(28.)).font_weight(FontWeight::SEMIBOLD).child("What do you need to do?")).child(div().text_color(p.toner_3).child(SharedString::from(note))))
+            .child(self.home_search.clone());
+        if !searching {
+            if let Some(favorites) = self.home_favorites(&p, cx) {
+                page = page.child(favorites);
             }
-            grid = grid.child(card);
+            let rows = entries("", &situation);
+            let recent: Vec<&Entry> = rows.iter().filter(|e| e.section == Section::Recent).collect();
+            let suggested: Vec<&Entry> = if loaded > 0 { rows.iter().filter(|e| e.section == Section::Suggested).collect() } else { Vec::new() };
+            let recent = self.home_list("home-recent", "Recent tools".into(), &recent, &p, cx);
+            page = page.child(match situation.files.first().and_then(|f| f.file_name()).filter(|_| !suggested.is_empty()) {
+                Some(name) => {
+                    let title = format!("Suggested for {}", name.to_string_lossy());
+                    div().grid().grid_cols(2).gap(px(32.)).child(recent).child(self.home_list("home-suggested", title, &suggested, &p, cx))
+                }
+                None => recent,
+            });
         }
-        let loaded = self.state.files.len();
-        div().id("home").size_full().overflow_y_scroll().child(
-            ui::col()
-                .px(px(40.))
-                .py(px(32.))
-                .gap(px(28.))
-                .child(
-                    drop_zone(&p)
-                        .h(px(264.))
-                        .flex_shrink_0()
-                        .child(paper_stack(&p))
-                        .child(
-                            ui::col().items_center().gap(px(6.)).child(div().text_size(px(18.)).line_height(px(24.)).font_weight(FontWeight::SEMIBOLD).child(if loaded == 0 { "Drop files to start".to_string() } else { format!("{loaded} {} loaded. Pick a tool.", if loaded == 1 { "file" } else { "files" }) })).child(div().text_color(p.toner_2).child("PDF, images, Office documents or HTML. Drop a folder to queue everything in it.")),
-                        )
-                        .child(
-                            ui::row()
-                                .gap(px(8.))
-                                .child(ui::button("browse", Btn::Default, 28., true, &p).child("Browse files").child(ui::kbd(&[m, "O"], &p, KeyOn::Surface)).on_click(cx.listener(|this, _, window, cx| this.pick_files(window, cx))))
-                                .child(ui::button("find-tool", Btn::Ghost, 28., true, &p).child("Find a tool").child(ui::kbd(&[m, "K"], &p, KeyOn::Surface)).on_click(cx.listener(|this, _, window, cx| this.open_palette(window, cx)))),
-                        ),
-                )
-                .child(ui::col().gap(px(12.)).child(ui::row().gap(px(8.)).px(px(4.)).child(ui::section_label("All tools", &p)).child(ui::mono(catalog::TOOLS.len().to_string()).text_size(px(TEXT_XS)).text_color(p.toner_4))).child(grid)),
-        )
+        div().id("home").size_full().overflow_y_scroll().child(div().flex().justify_center().px(px(16.)).child(page))
+    }
+
+    fn home_favorites(&self, p: &Palette, cx: &mut Context<Self>) -> Option<Div> {
+        let p = *p;
+        let favorites: Vec<(usize, &'static Tool)> = self.settings.favorites.iter().enumerate().filter_map(|(slot, id)| catalog::tool(id).map(|tool| (slot, tool))).collect();
+        if favorites.is_empty() {
+            return None;
+        }
+        let mut chips = ui::row().flex_wrap().gap(px(8.));
+        for (slot, tool) in favorites {
+            let id = tool.id;
+            // Ctrl 1 to 3 open the first three slots, so only those carry key caps.
+            let digit = (slot < 3).then(|| (slot + 1).to_string());
+            chips = chips.child(
+                div()
+                    .id(("home-favorite", slot))
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(px(8.))
+                    .h(px(28.))
+                    .pl(px(10.))
+                    .pr(px(if digit.is_some() { 5. } else { 10. }))
+                    .rounded(px(R_SM))
+                    .border_1()
+                    .border_color(p.control_rule)
+                    .cursor_pointer()
+                    .tab_index(0)
+                    .font_weight(FontWeight::MEDIUM)
+                    .hover(move |s| s.bg(p.plate))
+                    .active(move |s| s.bg(p.plate_2))
+                    .focus_visible(move |s| ui::ring(s, &p))
+                    .on_click(cx.listener(move |this, _, _, cx| this.open_tool(id, cx)))
+                    .child(ui::dot(p.group(tool.group), 6.))
+                    .child(tool.name)
+                    .when_some(digit, |s, digit| s.child(ui::kbd(&[mod_label(), digit.as_str()], &p, KeyOn::Surface))),
+            );
+        }
+        Some(ui::col().gap(px(8.)).child(ui::section_label("Favorites", &p)).child(chips))
+    }
+
+    /// A titled list of palette entries as 36px rows: dot, name, what the tool does, keys.
+    fn home_list(&self, id: &'static str, title: String, rows: &[&Entry], p: &Palette, cx: &mut Context<Self>) -> Div {
+        let p = *p;
+        let mut list = ui::col().min_w_0().gap(px(2.)).child(ui::row().h(px(20.)).mb(px(4.)).child(ui::section_label(title, &p)));
+        for (ix, entry) in rows.iter().enumerate() {
+            let command = entry.command.clone();
+            let detail = match entry.command {
+                Command::OpenTool(tool) => describe(tool),
+                _ => "",
+            };
+            list = list.child(
+                div()
+                    .id((id, ix))
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(px(10.))
+                    .h(px(36.))
+                    .px(px(10.))
+                    .rounded(px(R_SM))
+                    .cursor_pointer()
+                    .tab_index(0)
+                    .hover(move |s| s.bg(p.plate))
+                    .active(move |s| s.bg(p.plate_2))
+                    .focus_visible(move |s| ui::ring(s, &p))
+                    .on_click(cx.listener(move |this, _, window, cx| this.run_command(command.clone(), window, cx)))
+                    .when_some(entry.group, |s, g| s.child(ui::dot(p.group(g), 6.)))
+                    .child(div().min_w_0().overflow_hidden().whitespace_nowrap().text_ellipsis().font_weight(FontWeight::MEDIUM).child(SharedString::from(entry.title.clone())))
+                    .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().text_ellipsis().text_size(px(TEXT_SM)).text_color(p.toner_3).child(detail))
+                    .when(!entry.keys.is_empty(), |s| s.child(ui::kbd(&entry.keys, &p, KeyOn::Surface))),
+            );
+        }
+        list
     }
 
     /// A queue header: title, count and actions.
@@ -358,8 +405,4 @@ impl Shell {
             RowStatus::Failed { .. } => ui::row().gap(px(8.)).pt(px(6.)).child(ui::icon("alert", 14., p.stamp)).child(div().text_size(px(TEXT_SM)).text_color(p.toner_3).child("Nothing was written")),
         }
     }
-}
-
-fn tool_pos(tool: &'static Tool) -> usize {
-    catalog::TOOLS.iter().position(|t| t.id == tool.id).unwrap_or(0)
 }

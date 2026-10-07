@@ -29,13 +29,24 @@ fn open(cx: &mut TestAppContext) -> (AnyWindowHandle, Entity<Shell>) {
     (window, shell)
 }
 
+/// The app with a tool open, where the shortcut opens the palette as an overlay.
+fn open_off_home(cx: &mut TestAppContext) -> (AnyWindowHandle, Entity<Shell>) {
+    let (window, shell) = open(cx);
+    cx.update_window(window, |_, window, cx| {
+        shell.update(cx, |shell, cx| shell.open_tool("split", cx));
+        window.render_frame(cx);
+    })
+    .unwrap();
+    (window, shell)
+}
+
 fn titles(shell: &Entity<Shell>, cx: &gpui_kit::App) -> Vec<String> {
     shell.read(cx).palette.read(cx).entries().iter().map(|e| e.title.clone()).collect()
 }
 
 #[gpui_kit::test]
 fn shortcut_opens_the_palette_and_enter_switches_mode(cx: &mut TestAppContext) {
-    let (window, shell) = open(cx);
+    let (window, shell) = open_off_home(cx);
     cx.update_window(window, |_, window, cx| {
         assert!(!shell.read(cx).palette_open);
         window.press(open_key(), cx);
@@ -67,7 +78,7 @@ fn shortcut_opens_the_palette_and_enter_switches_mode(cx: &mut TestAppContext) {
 
 #[gpui_kit::test]
 fn arrows_wrap_and_escape_closes_and_returns_focus(cx: &mut TestAppContext) {
-    let (window, shell) = open(cx);
+    let (window, shell) = open_off_home(cx);
     cx.update_window(window, |_, window, cx| {
         window.press(open_key(), cx);
         let count = shell.read(cx).palette.read(cx).entries().len();
@@ -85,7 +96,7 @@ fn arrows_wrap_and_escape_closes_and_returns_focus(cx: &mut TestAppContext) {
         window.render_frame(cx);
         assert!(!shell.read(cx).palette_open);
         assert!(shell.read(cx).focus.is_focused(window), "focus goes back to the app");
-        assert_eq!(shell.read(cx).state.mode, None, "escape changes nothing");
+        assert_eq!(shell.read(cx).state.mode, Some("split"), "escape changes nothing");
         // And it opens again straight away.
         window.press(open_key(), cx);
         assert!(shell.read(cx).palette_open);
@@ -97,7 +108,7 @@ fn arrows_wrap_and_escape_closes_and_returns_focus(cx: &mut TestAppContext) {
 
 #[gpui_kit::test]
 fn the_palette_opens_with_a_fresh_query_each_time(cx: &mut TestAppContext) {
-    let (window, shell) = open(cx);
+    let (window, shell) = open_off_home(cx);
     cx.update_window(window, |_, window, cx| {
         window.press(open_key(), cx);
         window.input("merge", cx);
@@ -205,7 +216,7 @@ fn switching_mode_keeps_the_loaded_files(cx: &mut TestAppContext) {
 
 #[gpui_kit::test]
 fn palette_actions_run(cx: &mut TestAppContext) {
-    let (window, shell) = open(cx);
+    let (window, shell) = open_off_home(cx);
     cx.update_window(window, |_, window, cx| {
         window.press(open_key(), cx);
         window.input("light theme", cx);

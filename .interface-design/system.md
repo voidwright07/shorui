@@ -13,7 +13,7 @@ must be drawable with rectangles, borders, text and images. The design canvas st
 
 ### Signature
 
-1. **Paper is the light.** `stock` is the only bright fill: page thumbnails, the canvas page, the Home drop-zone sheet stack, the logo mark, signature cards.
+1. **Paper is the light.** `stock` is the only bright fill: page thumbnails, the canvas page, the logo mark, signature cards.
 2. **The run line.** The bottom bar reads left to right as input, arrow, output path, estimate, one action:
    `4 files · 58 pages → ~/Documents/Merged/Q3-report-merged.pdf · est. 12.0 MB  [Merge 4 files  Cmd Enter]`
 3. **Mono for anything measured or typed:** sizes, page counts, page ranges, paths, shortcuts.
@@ -46,7 +46,7 @@ IBM Plex Sans (400, 500, 600) and IBM Plex Mono (400, 500). Both SIL OFL, bundle
 
 | Token | Spec | Use |
 | --- | --- | --- |
-| type.display | 18 / 600 / -0.01em | Home drop zone |
+| type.display | 22 / 600 | Home heading |
 | type.heading | 13 / 600 | Mode name, panel and list titles |
 | type.label | 13 / 500 | Buttons, nav items, file names |
 | type.body | 13 / 400 | Inspector labels, prose |
@@ -109,7 +109,7 @@ Group colours never fill anything larger than a dot.
 | --- | --- | --- |
 | Card inset | 8px | Gap between the content card and the window's top, right and bottom edges. |
 | Sidebar | 220px, rail 48px | Home, Pinned, Recent, then Tools as five collapsible groups. Only the active group is open. Settings and theme toggle at the bottom. |
-| Top bar | 44px | Group dot, group name, chevron, mode name; open file chips; search field with Cmd K; "Local only" badge. |
+| Top bar | 44px | Group dot, group name, chevron, mode name; open file chips; search field with Cmd K (not on Home, where the page has its own); "Local only" badge. |
 | Workspace | flexible | One of: flat queue, page thumbnail grid, single-page canvas. |
 | Options panel | 300px | Inspector. 44px header with Reset. |
 | Run line | 52px | Input summary, arrow, output path button, estimate, then buttons. One primary. |
@@ -136,6 +136,7 @@ Minimum window 1100×700: sidebar becomes the rail, file chips collapse to a cou
 - **Toggle chip:** 24px, radius 6; on is cyan-wash with cyan-rule, optional mono count.
 - **Progress:** 4px bar on plate-3, cyan fill, proof when complete.
 - **Command palette:** 640px, radius 12, `sleeve` on `scrim`. 48px input, 36px rows, selected row `plate-2`, matched letters in cyan 600, group shown as dot plus name, 36px hint footer.
+- **Home launcher:** a 720px column, 104px from the top. 22/600 heading, toner-3 line under it. The palette inline: 52px input row on `well` with a `control-rule` edge, radius 12, cyan edge when focused, no key caps; while there is a query the palette rows and hint footer attach inside the same box. With an empty query: Favorites as 28px chips (dot, name, Cmd 1 to 3), then Recent tools and, with files loaded, Suggested for the first file, as 36px rows (dot, name 13/500, one-line description in toner-3, G chord). Typing anywhere on Home lands in the box.
 - **Popover and toast:** `sleeve`, `rule-strong` edge, radius 8. Toast is 340px with a status icon, title 13/500 and one line of detail.
 - **Dialog:** 400px, radius 12, buttons right-aligned, destructive confirm in stamp-fill.
 - **Permanent-action notice:** stamp-wash fill, stamp-rule edge, alert icon in stamp, 13/600 title, 12px body.

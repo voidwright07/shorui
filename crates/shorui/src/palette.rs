@@ -79,9 +79,34 @@ impl PaletteView {
         self.refresh(cx);
     }
 
+    /// Focus the input with its text selected, so typing replaces the last query.
+    pub fn focus_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.input.update(cx, |state, cx| {
+            state.focus(window, cx);
+            state.select_all(window, cx);
+        });
+    }
+
+    /// Focus the input and add `text` at the end of the query.
+    pub fn type_text(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let value = self.query(cx) + text;
+        self.input.update(cx, |state, cx| {
+            state.set_value(value, window, cx);
+            state.focus(window, cx);
+        });
+        self.refresh(cx);
+    }
+
     pub fn clear(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.input.update(cx, |state, cx| state.set_value("", window, cx));
         self.refresh(cx);
+    }
+
+    pub fn set_situation(&mut self, situation: Situation, cx: &mut Context<Self>) {
+        if self.situation != situation {
+            self.situation = situation;
+            self.refresh(cx);
+        }
     }
 
     pub fn is_focused(&self, window: &Window, cx: &App) -> bool {

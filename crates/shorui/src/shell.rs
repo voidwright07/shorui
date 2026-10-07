@@ -61,6 +61,8 @@ pub struct Shell {
     pub open_groups: HashSet<Group>,
     pub palette: Entity<PaletteView>,
     pub palette_open: bool,
+    /// The same search as the palette, inline on Home.
+    pub home_search: Entity<PaletteView>,
     pub job: Option<jobs::Handle>,
     pub toast: Option<Toast>,
     toast_counter: u64,
@@ -96,6 +98,15 @@ impl Shell {
             PaletteEvent::Dismiss => this.close_palette(window, cx),
             PaletteEvent::Run(command) => {
                 this.close_palette(window, cx);
+                this.run_command(command.clone(), window, cx);
+            }
+        });
+        let home_search = cx.new(|cx| PaletteView::new(Presentation::Inline, window, cx));
+        let home_subscription = cx.subscribe_in(&home_search, window, |this: &mut Self, search, event: &PaletteEvent, window, cx| match event {
+            PaletteEvent::Dismiss => window.focus(&this.focus, cx),
+            PaletteEvent::Run(command) => {
+                search.update(cx, |search, cx| search.clear(window, cx));
+                window.focus(&this.focus, cx);
                 this.run_command(command.clone(), window, cx);
             }
         });
@@ -152,6 +163,7 @@ impl Shell {
             open_groups: HashSet::new(),
             palette,
             palette_open: false,
+            home_search,
             job: None,
             toast: None,
             toast_counter: 0,
@@ -170,7 +182,7 @@ impl Shell {
             thumbs_for: 0,
             prefs_pending: false,
             last_outputs: Vec::new(),
-            _subscriptions: vec![subscription, restore, chords],
+            _subscriptions: vec![subscription, home_subscription, restore, chords],
         }
     }
 
@@ -190,6 +202,10 @@ impl Shell {
         // The same shortcut closes it again.
         if self.palette_open {
             self.close_palette(window, cx);
+            return;
+        }
+        if self.state.tool().is_none() {
+            self.home_search.update(cx, |search, cx| search.focus_all(window, cx));
             return;
         }
         let situation = self.situation();
@@ -648,7 +664,8 @@ impl Shell {
         }
     }
 
-    /// `G` then a letter switches tool. Returns true when the key was used up.
+    /// `G` then a letter switches tool. On Home, any other printable key starts a search in
+    /// the inline box. Returns true when the key was used up.
     ///
     /// This runs before key bindings, so the chord also works while the page grid or a
     /// button has the keyboard. It stands aside while a text field is focused.
@@ -666,13 +683,22 @@ impl Shell {
                 self.open_tool(tool.id, cx);
                 return true;
             }
-            return false;
+            return self.type_on_home("g", keystroke, window, cx);
         }
         if keystroke.key == "g" && !m.shift {
             self.chord_pending = true;
             return true;
         }
-        false
+        self.type_on_home("", keystroke, window, cx)
+    }
+
+    fn type_on_home(&mut self, prefix: &str, keystroke: &Keystroke, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        // Space and Enter stay with whatever row or button has the keyboard.
+        let printable = keystroke.key_char.as_deref().filter(|t| !t.is_empty() && t.chars().all(|c| !c.is_control() && !c.is_whitespace()));
+        let (None, Some(text)) = (self.state.tool(), printable) else { return false };
+        let text = format!("{prefix}{text}");
+        self.home_search.update(cx, |search, cx| search.type_text(&text, window, cx));
+        true
     }
 }
 

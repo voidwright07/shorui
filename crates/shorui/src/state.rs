@@ -409,8 +409,7 @@ impl State {
     }
 
     /// The left part of the run line: what goes in.
-    pub fn input_summary(&self) -> String {
-        let Some(tool) = self.tool() else { return "No files open".into() };
+    pub fn input_summary(&self, tool: &Tool) -> String {
         let set = self.run_set();
         if set.is_empty() {
             return match tool.inputs {
