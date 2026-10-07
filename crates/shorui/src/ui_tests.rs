@@ -171,7 +171,8 @@ fn g_then_a_letter_switches_tool(cx: &mut TestAppContext) {
     cx.update_window(window, |_, window, cx| {
         window.press("g", cx);
         window.press("m", cx);
-        assert_eq!(shell.read(cx).state.mode, Some("merge"));
+        assert_eq!(shell.read(cx).state.mode, Some("merge"), "the chord works on Home too");
+        assert_eq!(shell.read(cx).home_search.read(cx).query(cx), "", "and its keys were not typed into the search");
         window.press("g", cx);
         window.press("c", cx);
         assert_eq!(shell.read(cx).state.mode, Some("compress"));
@@ -235,6 +236,85 @@ fn palette_actions_run(cx: &mut TestAppContext) {
         assert!(!shell.read(cx).settings.dark);
         assert!(!crate::ui::pal(cx).dark, "the palette of colours switched too");
     });
+}
+
+fn home_titles(shell: &Entity<Shell>, cx: &gpui_kit::App) -> Vec<String> {
+    shell.read(cx).home_search.read(cx).entries().iter().map(|e| e.title.clone()).collect()
+}
+
+#[gpui_kit::test]
+fn on_home_the_shortcut_focuses_the_search_on_the_page(cx: &mut TestAppContext) {
+    let (window, shell) = open(cx);
+    let search = cx.update(|cx| shell.read(cx).home_search.clone());
+    cx.update_window(window, |_, window, cx| {
+        assert!(!search.read(cx).is_focused(window, cx));
+        window.press(open_key(), cx);
+        assert!(!shell.read(cx).palette_open, "no overlay on Home");
+        assert!(search.read(cx).is_focused(window, cx), "the search on the page has the keyboard");
+        window.input("split", cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
+    cx.update_window(window, |_, window, cx| {
+        let focus = shell.read(cx).focus.clone();
+        window.focus(&focus, cx);
+        window.press(open_key(), cx);
+        assert!(search.read(cx).is_focused(window, cx));
+        window.input("merge", cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
+    cx.update_window(window, |_, window, cx| {
+        assert_eq!(search.read(cx).query(cx), "merge", "the shortcut selects the old query, so typing replaces it");
+        shell.update(cx, |shell, cx| shell.open_tool("split", cx));
+        window.render_frame(cx);
+        window.press(open_key(), cx);
+        assert!(shell.read(cx).palette_open, "off Home the shortcut opens the overlay");
+    })
+    .unwrap();
+}
+
+#[gpui_kit::test]
+fn typing_on_home_searches_and_enter_opens_the_tool(cx: &mut TestAppContext) {
+    let (window, shell) = open(cx);
+    cx.update_window(window, |_, window, cx| window.input("comp", cx)).unwrap();
+    cx.run_until_parked();
+    cx.update_window(window, |_, window, cx| {
+        window.render_frame(cx);
+        assert_eq!(shell.read(cx).home_search.read(cx).query(cx), "comp", "every letter landed once, the first one included");
+        assert_eq!(home_titles(&shell, cx)[0], "Compress");
+        assert!(!shell.read(cx).palette_open);
+        window.press("enter", cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
+    cx.update_window(window, |_, window, cx| {
+        assert_eq!(shell.read(cx).state.mode, Some("compress"));
+        assert_eq!(shell.read(cx).home_search.read(cx).query(cx), "", "the search is empty when Home comes back");
+        assert!(shell.read(cx).focus.is_focused(window), "the keyboard is back with the app");
+    })
+    .unwrap();
+}
+
+#[gpui_kit::test]
+fn escape_clears_the_home_search_then_leaves_it(cx: &mut TestAppContext) {
+    let (window, shell) = open(cx);
+    let search = cx.update(|cx| shell.read(cx).home_search.clone());
+    cx.update_window(window, |_, window, cx| window.input("comp", cx)).unwrap();
+    cx.run_until_parked();
+    cx.update_window(window, |_, window, cx| {
+        window.press("escape", cx);
+        assert_eq!(search.read(cx).query(cx), "", "the first Esc clears the query");
+        assert!(search.read(cx).is_focused(window, cx), "and keeps the keyboard in the box");
+        window.press("escape", cx);
+    })
+    .unwrap();
+    cx.run_until_parked();
+    cx.update_window(window, |_, window, cx| {
+        assert!(shell.read(cx).focus.is_focused(window), "the second Esc hands the keyboard back to the app");
+        assert_eq!(shell.read(cx).state.mode, None);
+    })
+    .unwrap();
 }
 
 // ---------------------------------------------------------------------------
