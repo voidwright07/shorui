@@ -54,7 +54,7 @@ jobs:
       - name: WiX Toolset
         run: |
           dotnet tool install --global wix --version 5.0.2
-          $tools = Join-Path $env:USERPROFILE '.dotnet	ools'
+          $tools = Join-Path $env:USERPROFILE '.dotnet\tools'
           Add-Content $env:GITHUB_PATH $tools
           & "$tools\wix.exe" extension add -g WixToolset.UI.wixext/5.0.2
           & "$tools\wix.exe" extension add -g WixToolset.Util.wixext/5.0.2

@@ -8,6 +8,56 @@ Built in Rust with [GPUI](https://gpui.rs) and [gpui-kit](https://gpui-kit.com).
 
 ![Shorui merging four PDFs, with the combined page order shown under the queue](docs/screenshots/merge.png)
 
+## Install
+
+One command, no administrator rights. Every install fetches the latest
+[release](https://github.com/voidwright07/shorui/releases) and checks it against the release's
+checksums.
+
+### Windows 10 and 11
+
+Open **PowerShell** and run:
+
+```powershell
+irm https://raw.githubusercontent.com/voidwright07/shorui/main/install.ps1 | iex
+```
+
+Shorui installs for your user and appears in the Start menu. It also adds "Open with > Shorui"
+for PDF files; your default PDF app is not changed.
+
+### macOS (Apple Silicon and Intel)
+
+Open **Terminal** and run:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/voidwright07/shorui/main/install.sh | sh
+```
+
+Shorui goes to `/Applications`, or `~/Applications` if that folder is not writable. Open it from
+Launchpad or Spotlight. Needs macOS 11 Big Sur or later.
+
+### Linux (x86_64 and arm64)
+
+Open a terminal and run:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/voidwright07/shorui/main/install.sh | sh
+```
+
+Shorui goes to `~/.local`, with an entry in your applications menu and `shorui` on the command
+line. Needs glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 or later) and Vulkan graphics.
+If a library is missing, the script names the command that installs it.
+
+### Uninstall, or install a particular version
+
+| | macOS and Linux | Windows (PowerShell) |
+| --- | --- | --- |
+| Uninstall | `curl -fsSL https://raw.githubusercontent.com/voidwright07/shorui/main/install.sh \| sh -s -- --uninstall` | Settings > Apps > Shorui > Uninstall |
+| A particular version | `curl -fsSL https://raw.githubusercontent.com/voidwright07/shorui/main/install.sh \| sh -s -- --version v0.1.0` | `$env:SHORUI_VERSION='v0.1.0'` then the install command |
+
+Your settings are kept when you uninstall. If you'd rather download a file, each release also has
+a `.msi` for Windows and a `.dmg` for macOS (open it and drag Shorui to Applications).
+
 ## Why Shorui
 
 - **Local only.** Files are read and written on disk here. The one exception is HTML/URL to PDF,
@@ -68,36 +118,6 @@ the bottom showing what goes in, where it goes, and the single action.
     </td>
   </tr>
 </table>
-
-## Install
-
-One command on each system. Nothing needs administrator rights.
-
-**Windows** (PowerShell):
-
-```powershell
-irm https://raw.githubusercontent.com/voidwright07/shorui/main/install.ps1 | iex
-```
-
-**macOS** (Apple Silicon or Intel) and **Linux** (x86_64 or arm64):
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/voidwright07/shorui/main/install.sh | sh
-```
-
-- **Windows:** installs for your user, with a Start menu entry and "Open with" for PDFs.
-  Remove it under Settings > Apps.
-- **macOS:** the app goes to `/Applications`, or `~/Applications` when that is not writable.
-- **Linux:** the app goes to `~/.local`, with an entry in your applications menu. It needs
-  glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 or later) and Vulkan graphics. The
-  script lists any missing libraries and the command that installs them.
-
-To remove Shorui, run the same command with `sh -s -- --uninstall` on macOS or Linux. On
-Windows, set `$env:SHORUI_UNINSTALL='1'` first. Settings are kept. To install a particular
-release, use `sh -s -- --version v0.1.0` or `$env:SHORUI_VERSION='v0.1.0'`.
-
-Prefer a file? Each [release](https://github.com/voidwright07/shorui/releases) has a `.msi`
-for Windows and a `.dmg` for macOS.
 
 ## Build and run
 
