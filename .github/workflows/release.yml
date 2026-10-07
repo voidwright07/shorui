@@ -1,0 +1,167 @@
+# Builds Shorui for Windows, macOS and Linux and publishes a GitHub Release.
+#
+# Release:   git tag v0.1.0 && git push origin v0.1.0
+# Try out:   Actions > Release > Run workflow (builds everything, keeps the files as
+#            workflow artifacts, publishes nothing)
+#
+# The install scripts download these files by their fixed names from the latest release:
+#   Shorui-windows-x64.msi, shorui-windows-x64.zip,
+#   Shorui-macos-universal.dmg, shorui-macos-universal.tar.gz,
+#   shorui-linux-x86_64.tar.gz, shorui-linux-aarch64.tar.gz, SHA256SUMS.txt
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    name: Check the version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The tag matches Cargo.toml
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          cargo_version=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version *= *"\(.*\)"/\1/p' Cargo.toml)
+          tag="${GITHUB_REF_NAME#v}"
+          echo "Cargo.toml: $cargo_version, tag: $tag"
+          if [ "$cargo_version" != "$tag" ]; then
+            echo "::error::The tag v$tag does not match version $cargo_version in Cargo.toml. Update Cargo.toml, commit, and tag again."
+            exit 1
+          fi
+
+  windows:
+    name: Windows x64
+    needs: version
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust (the version in rust-toolchain.toml)
+        shell: bash
+        run: rustup toolchain install "$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)" --profile minimal
+      - uses: Swatinem/rust-cache@v2
+      - name: WiX Toolset
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          $tools = Join-Path $env:USERPROFILE '.dotnet	ools'
+          Add-Content $env:GITHUB_PATH $tools
+          & "$tools\wix.exe" extension add -g WixToolset.UI.wixext/5.0.2
+          & "$tools\wix.exe" extension add -g WixToolset.Util.wixext/5.0.2
+      - name: Build the installer
+        run: ./installer/build.ps1
+      - name: Name the files for the release
+        run: |
+          Move-Item dist\Shorui-*-x64.msi dist\Shorui-windows-x64.msi
+          Compress-Archive -Path target\release\shorui.exe, target\release\shorui-cli.exe, crates\shorui\assets\fonts\OFL.txt -DestinationPath dist\shorui-windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+          if-no-files-found: error
+
+  macos:
+    name: macOS universal
+    needs: version
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust (the version in rust-toolchain.toml)
+        run: rustup toolchain install "$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)" --profile minimal
+      - uses: Swatinem/rust-cache@v2
+      - name: Build the app and the disk image
+        run: sh installer/macos/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*
+          if-no-files-found: error
+
+  linux:
+    name: Linux ${{ matrix.arch }}
+    needs: version
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Built on Ubuntu 22.04 so it runs on any distribution with glibc 2.35 or newer.
+          - runner: ubuntu-22.04
+            arch: x86_64
+          - runner: ubuntu-22.04-arm
+            arch: aarch64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential pkg-config \
+            libfontconfig-dev libfreetype-dev libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libx11-dev libx11-xcb-dev libxcb1-dev libvulkan-dev
+      - name: Rust (the version in rust-toolchain.toml)
+        run: |
+          command -v rustup || curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/rustup" toolchain install "$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)" --profile minimal
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.arch }}
+      - name: Build the package
+        run: sh installer/linux/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publish
+    needs: [windows, macos, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Keep the files (manual runs)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-platforms
+          path: dist/*
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            **Windows** (PowerShell):
+            ```powershell
+            irm https://raw.githubusercontent.com/${{ github.repository }}/main/install.ps1 | iex
+            ```
+
+            **macOS** (Apple Silicon or Intel) and **Linux** (x86_64 or arm64):
+            ```sh
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | sh
+            ```
+
+            Or download a file below: the `.msi` for Windows, or the `.dmg` for macOS (drag Shorui
+            to Applications).

@@ -1,0 +1,12 @@
+# Shell scripts run on macOS and Linux and must keep Unix line endings, even when the
+# repository is checked out on Windows with core.autocrlf on.
+*.sh text eol=lf
+*.desktop text eol=lf
+*.plist text eol=lf
+*.yml text eol=lf
+
+# Binary assets.
+*.png binary
+*.ico binary
+*.bmp binary
+*.ttf binary

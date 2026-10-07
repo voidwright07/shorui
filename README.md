@@ -69,6 +69,36 @@ the bottom showing what goes in, where it goes, and the single action.
   </tr>
 </table>
 
+## Install
+
+One command on each system. Nothing needs administrator rights.
+
+**Windows** (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/voidwright07/shorui/main/install.ps1 | iex
+```
+
+**macOS** (Apple Silicon or Intel) and **Linux** (x86_64 or arm64):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/voidwright07/shorui/main/install.sh | sh
+```
+
+- **Windows:** installs for your user, with a Start menu entry and "Open with" for PDFs.
+  Remove it under Settings > Apps.
+- **macOS:** the app goes to `/Applications`, or `~/Applications` when that is not writable.
+- **Linux:** the app goes to `~/.local`, with an entry in your applications menu. It needs
+  glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 or later) and Vulkan graphics. The
+  script lists any missing libraries and the command that installs them.
+
+To remove Shorui, run the same command with `sh -s -- --uninstall` on macOS or Linux. On
+Windows, set `$env:SHORUI_UNINSTALL='1'` first. Settings are kept. To install a particular
+release, use `sh -s -- --version v0.1.0` or `$env:SHORUI_VERSION='v0.1.0'`.
+
+Prefer a file? Each [release](https://github.com/voidwright07/shorui/releases) has a `.msi`
+for Windows and a `.dmg` for macOS.
+
 ## Build and run
 
 Needs Rust 1.93 or newer (the repository pins 1.98 in `rust-toolchain.toml`).
@@ -94,27 +124,32 @@ Platform notes:
 Only the Windows build has been run and tested so far. The interface has no Windows-only
 code; the platform-specific helpers are listed below.
 
-### Windows installer
+### Making a release
 
-`installer\build.ps1` builds `dist\Shorui-<version>-x64.msi`:
+Push a version tag. GitHub Actions (`.github/workflows/release.yml`) builds every package and
+publishes them as a release, which the install commands above then fetch:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File installer\build.ps1
+```sh
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
-It needs the WiX Toolset 5 command line once per machine: `dotnet tool install --global wix --version 5.0.2`,
-then `wix extension add -g WixToolset.UI.wixext/5.0.2` and `wix extension add -g WixToolset.Util.wixext/5.0.2`.
+The tag must match `version` in `Cargo.toml`. To try the builds without publishing, run the
+**Release** workflow by hand from the Actions tab; the files are kept as workflow artifacts.
 
-What the installer does:
+| Package | Built on | Script |
+| --- | --- | --- |
+| `Shorui-windows-x64.msi`, `shorui-windows-x64.zip` | Windows | `installer\build.ps1` (WiX Toolset 5) |
+| `Shorui-macos-universal.dmg`, `shorui-macos-universal.tar.gz` | macOS (one app for Apple Silicon and Intel) | `installer/macos/package.sh` |
+| `shorui-linux-x86_64.tar.gz`, `shorui-linux-aarch64.tar.gz` | Ubuntu 22.04 | `installer/linux/package.sh` |
 
-- **Who it installs for:** the current user only, so no administrator rights are needed. Shorui
-  goes to `%LOCALAPPDATA%\Programs\Shorui`, with `shorui-cli.exe` beside it.
-- **Shortcuts and uninstalling:** it adds a Start menu shortcut and an entry under Settings > Apps.
-- **Open with:** Shorui appears under "Open with" for PDF files. The default PDF app is not changed.
-- **Upgrades:** a newer installer replaces the old version in place, and settings are kept.
+Each script also runs locally on its own system. The Windows one needs the WiX command line
+once per machine: `dotnet tool install --global wix --version 5.0.2`, then
+`wix extension add -g WixToolset.UI.wixext/5.0.2` and `wix extension add -g WixToolset.Util.wixext/5.0.2`.
 
-The installer is not code-signed, so Windows SmartScreen warns the first time it runs on another
-PC ("More info", then "Run anyway").
+None of the packages are code-signed yet. On Windows, SmartScreen warns the first time a
+downloaded `.msi` runs ("More info", then "Run anyway"). On macOS, the install command is not
+affected, but an app opened from the `.dmg` needs right-click > Open the first time.
 
 ### Command line
 

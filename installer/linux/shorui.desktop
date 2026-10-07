@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Shorui
+GenericName=PDF Toolbox
+Comment=Merge, split, compress, fill, sign, redact and convert PDFs, offline
+Exec=shorui %F
+Icon=shorui
+Terminal=false
+Categories=Office;Utility;
+MimeType=application/pdf;
+Keywords=pdf;merge;split;compress;sign;redact;ocr;convert;
+StartupWMClass=shorui

@@ -1,7 +1,8 @@
 """Draws the app icon: a sheet of paper on a graphite tile. Standard library only.
 
 Run from this folder:  python make_icon.py
-Writes icon.png (256 px) and icon.ico (256, 64, 48, 32, 16 px).
+Writes icon.png (256 px) and icon.ico (256, 64, 48, 32, 16 px), plus icon-macos.png: 1024 px with
+the tile inset to 824 px, the margin macOS app icons keep, for the .icns made at release time.
 """
 import math
 import struct
@@ -54,8 +55,8 @@ def draw(size):
     return rows
 
 
-def png(size):
-    raw = b"".join(b"\x00" + row for row in draw(size))
+def png(size, rows=None):
+    raw = b"".join(b"\x00" + row for row in (rows if rows is not None else draw(size)))
 
     def chunk(kind, data):
         body = kind + data
@@ -75,3 +76,12 @@ for s, data in zip(sizes, images):
     offset += len(data)
 open("icon.ico", "wb").write(header + entries + b"".join(images))
 print("icon.png", len(images[0]), "bytes; icon.ico", offset, "bytes")
+
+# macOS: the tile sits inside a transparent margin, as system app icons do.
+inner, canvas = 824, 1024
+pad = (canvas - inner) // 2
+tile = draw(inner)
+blank = bytes(4 * canvas)
+rows = [blank] * pad + [bytes(4 * pad) + row + bytes(4 * pad) for row in tile] + [blank] * pad
+open("icon-macos.png", "wb").write(png(canvas, rows))
+print("icon-macos.png written")
