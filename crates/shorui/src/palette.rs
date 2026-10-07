@@ -204,8 +204,8 @@ fn highlighted(text: &str, hits: &[(usize, usize)], base: Hsla, p: &Palette) -> 
 }
 
 impl PaletteView {
-    fn input_row(&self, height: f32, p: &Palette) -> Div {
-        ui::row().h(px(height)).flex_shrink_0().pl(px(16.)).pr(px(12.)).gap(px(10.)).child(ui::icon("search", 16., p.toner_3)).child(div().flex_1().min_w_0().text_size(px(15.)).child(Input::new(&self.input).appearance(false)))
+    fn input_row(&self, height: f32, text: f32, p: &Palette) -> Div {
+        ui::row().h(px(height)).flex_shrink_0().pl(px(16.)).pr(px(12.)).gap(px(10.)).child(ui::icon("search", 16., p.toner_3)).child(div().flex_1().min_w_0().child(Input::new(&self.input).appearance(false).py(px(0.)).h(px(text * 1.6)).text_size(px(text)).line_height(px(text * 1.3))))
     }
 
     fn results(&self, p: &Palette, cx: &mut Context<Self>) -> Stateful<Div> {
@@ -309,7 +309,7 @@ impl Render for PaletteView {
                         .bg(p.sleeve)
                         .overflow_hidden()
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .child(self.input_row(48., &p).border_b_1().border_color(p.rule).child(ui::kbd(&["Esc"], &p, KeyOn::Surface)))
+                        .child(self.input_row(48., 15., &p).border_b_1().border_color(p.rule).child(ui::kbd(&["Esc"], &p, KeyOn::Surface)))
                         .child(self.results(&p, cx))
                         .child(self.footer("Close", &p)),
                 ),
@@ -325,7 +325,7 @@ impl Render for PaletteView {
                     .border_color(if focused { p.cyan } else { p.control_rule })
                     .bg(p.well)
                     .overflow_hidden()
-                    .child(self.input_row(52., &p).when(open, |s| s.border_b_1().border_color(p.rule)))
+                    .child(self.input_row(56., 18., &p).when(open, |s| s.border_b_1().border_color(p.rule)))
                     .when(open, |s| s.child(self.results(&p, cx)).child(self.footer("Clear", &p)))
             }
         }
