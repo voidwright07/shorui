@@ -82,10 +82,11 @@ a `.msi` for Windows and a `.dmg` for macOS (open it and drag Shorui to Applicat
 
 ### Start anywhere
 
-Drop files or a whole folder onto the window, or pick a tool first. Favourite and recent tools sit
-in the sidebar.
+Start typing on Home to find any tool or action. The search box there is the command palette, so
+"comp" offers Compress and Compare, and "encrypt" finds Protect. Or drop files or a whole folder
+onto the window first. Favourite and recent tools sit under the search and in the sidebar.
 
-![Home screen with the drop zone and all the tools grouped by kind](docs/screenshots/home.png)
+![Home screen with the search box, favourite tools and recent tools](docs/screenshots/home.png)
 
 ### Queue tools: set a few options, run
 
@@ -200,7 +201,7 @@ When a helper is missing, the tool says which one and how to get it.
 
 | Keys | Action |
 | --- | --- |
-| `Ctrl/Cmd K` | Command palette |
+| `Ctrl/Cmd K` | Command palette (on Home, the search box; there you can also just start typing) |
 | `Ctrl/Cmd O` | Add files |
 | `Ctrl/Cmd Enter` | Run the current tool |
 | `G` then a letter | Jump to a tool (`G M` Merge, `G C` Compress; the palette shows each one) |
